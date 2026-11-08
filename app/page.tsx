@@ -27,10 +27,10 @@ export default function HomePage() {
 
       <section className="text-center my-20">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-6">
-          <Sparkles className="w-4 h-4" /> Satu Tautan untuk Semua Konten Anda
+          <Sparkles className="w-4 h-4" /> Satu Tautan untuk Semua Dokumen
         </div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6">
-          Kumpulkan semua media sosial & portofolio dalam satu bio page.
+          Kumpulkan semua dokumen & portofolio dalam satu bio page.
         </h1>
         <p className="text-slate-400 text-base md:text-lg max-w-2xl mx-auto mb-8">
           Buat profil personal, custom styling tautan, simpan ke database cloud Supabase, dan bagikan alamat unik bio Anda dengan mudah.
