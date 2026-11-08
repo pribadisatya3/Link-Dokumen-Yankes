@@ -2,8 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'YankesTree - Dokumen Arsip Bidang Pelayanan Kesehatan',
-  description: 'Portal satu tautan untuk membagikan dan mengarsipkan dokumen resmi Yankes',
+  title: 'YankesTree - Layanan Dokumen & Profil',
+  description: 'Portal Layanan Resmi Yankes',
+  icons: {
+    icon: '/logo.png', // path relatif ke folder public
+    shortcut: '/logo.png',
+    apple: '/logo.png', // jika ingin ikon saat di-bookmark di iOS/Safari
+  },
 };
 
 export default function RootLayout({
@@ -13,9 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
