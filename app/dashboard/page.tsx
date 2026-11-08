@@ -409,7 +409,7 @@ export default function DashboardPage() {
                   <label className="text-xs font-medium text-slate-400 mb-1 block">URL Logo / Lambang (PNG)</label>
                   <input
                     type="text"
-                    placeholder="public/logo-badung.png"
+                    placeholder="https://.../lambang-badung.png"
                     value={profile.avatar_url || ''}
                     onChange={(e) => setProfile({ ...profile, avatar_url: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
