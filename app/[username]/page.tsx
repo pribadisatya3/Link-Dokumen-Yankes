@@ -159,7 +159,7 @@ export default function PublicBioPage() {
 
         {/* Footer Bio */}
         <footer className="mt-14 text-xs text-slate-600">
-          Dibuat dengan <span className="font-bold text-slate-400">BioTree</span>
+          Dibuat dengan <span className="font-bold text-slate-400">YankesTree</span>
         </footer>
       </div>
     </div>
