@@ -21,7 +21,9 @@ import {
   ChevronDown,
   FolderPlus,
   FolderOpen,
-  FileText
+  FileText,
+  Pencil,
+  X
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -36,18 +38,27 @@ export default function DashboardPage() {
     avatar_url: ''
   });
   const [links, setLinks] = useState<any[]>([]);
-  
+
   // Form Tambah Link
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [parentId, setParentId] = useState<string>(''); // Jika diisi, menjadi sub-dokumen dari link ini
-  
+
   // Modal / Form Tambah Profil Baru (Multi-User)
   const [showAddProfileModal, setShowAddProfileModal] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [addingProfile, setAddingProfile] = useState(false);
+
+  // Modal / Form Edit Dokumen
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLink, setEditingLink] = useState<any>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editThumbnailUrl, setEditThumbnailUrl] = useState('');
+  const [editParentId, setEditParentId] = useState<string>('');
+  const [updatingLink, setUpdatingLink] = useState(false);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,14 +66,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
       if (!session) {
         router.push('/login');
         return;
       }
       setUser(session.user);
 
-      // Ambil semua profil milik pengguna ini (baik akun utama maupun sub-profil)
+      // Ambil semua profil milik pengguna ini
       let { data: profilesList } = await supabase
         .from('profiles')
         .select('*')
@@ -70,15 +83,20 @@ export default function DashboardPage() {
 
       // Jika belum ada profil sama sekali, buatkan profil awal
       if (!profilesList || profilesList.length === 0) {
-        const fallbackUsername = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'yankes';
+        const fallbackUsername =
+          session.user.user_metadata?.username ||
+          session.user.email?.split('@')[0] ||
+          'yankes';
         const { data: newProf } = await supabase
           .from('profiles')
           .insert({
             id: session.user.id,
             owner_id: session.user.id,
             username: fallbackUsername,
-            display_name: session.user.user_metadata?.display_name || 'DOKUMEN ARSIP BIDANG YANKES',
-            bio: 'Menyimpan Semua Dokumen Bidang Yankes',
+            display_name:
+              session.user.user_metadata?.display_name ||
+              'DOKUMEN ARSIP BIDANG YANKES',
+            bio: 'Menyimpan Semua Dokumen Bidang Yankes'
           })
           .select()
           .single();
@@ -124,7 +142,10 @@ export default function DashboardPage() {
     if (!newUsername || !user) return;
     setAddingProfile(true);
 
-    const cleanUsername = newUsername.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const cleanUsername = newUsername
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '');
 
     const { data: created, error } = await supabase
       .from('profiles')
@@ -132,7 +153,7 @@ export default function DashboardPage() {
         owner_id: user.id,
         username: cleanUsername,
         display_name: newDisplayName || cleanUsername,
-        bio: 'Menyimpan Semua Dokumen Bidang Yankes',
+        bio: 'Menyimpan Semua Dokumen Bidang Yankes'
       })
       .select()
       .single();
@@ -151,14 +172,15 @@ export default function DashboardPage() {
     setAddingProfile(false);
   }
 
-  // Tambah Link Baru (Bisa dokumen utama atau sub-dokumen)
+  // Tambah Link Baru
   async function handleAddLink(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !url || !profile.id) return;
 
-    const formattedUrl = url.startsWith('http://') || url.startsWith('https://')
-      ? url
-      : `https://${url}`;
+    const formattedUrl =
+      url.startsWith('http://') || url.startsWith('https://')
+        ? url
+        : `https://${url}`;
 
     const { error } = await supabase.from('links').insert({
       user_id: profile.id,
@@ -167,7 +189,7 @@ export default function DashboardPage() {
       url: formattedUrl,
       thumbnail_url: thumbnailUrl.trim() || null,
       order_index: links.length,
-      is_active: true,
+      is_active: true
     });
 
     if (!error) {
@@ -181,7 +203,50 @@ export default function DashboardPage() {
     }
   }
 
+  // Buka Modal Edit Dokumen
+  function handleOpenEditModal(link: any) {
+    setEditingLink(link);
+    setEditTitle(link.title || '');
+    setEditUrl(link.url || '');
+    setEditThumbnailUrl(link.thumbnail_url || '');
+    setEditParentId(link.parent_id || '');
+    setShowEditModal(true);
+  }
+
+  // Simpan Perubahan Edit Dokumen
+  async function handleUpdateLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingLink || !editTitle || !editUrl) return;
+    setUpdatingLink(true);
+
+    const formattedUrl =
+      editUrl.startsWith('http://') || editUrl.startsWith('https://')
+        ? editUrl
+        : `https://${editUrl}`;
+
+    const { error } = await supabase
+      .from('links')
+      .update({
+        title: editTitle,
+        url: formattedUrl,
+        thumbnail_url: editThumbnailUrl.trim() || null,
+        parent_id: editParentId.trim() ? editParentId : null
+      })
+      .eq('id', editingLink.id);
+
+    if (!error) {
+      await loadLinks(profile.id);
+      setShowEditModal(false);
+      setEditingLink(null);
+    } else {
+      alert('Gagal memperbarui link: ' + error.message);
+    }
+    setUpdatingLink(false);
+  }
+
   async function handleDeleteLink(id: string) {
+    if (!confirm('Yakin ingin menghapus dokumen ini beserta seluruh isinya?')) return;
+    await supabase.from('links').delete().eq('parent_id', id);
     await supabase.from('links').delete().eq('id', id);
     loadLinks(profile.id);
   }
@@ -193,14 +258,20 @@ export default function DashboardPage() {
 
   async function handleSaveProfile() {
     setSavingProfile(true);
-    await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({
         display_name: profile.display_name,
         bio: profile.bio,
-        avatar_url: profile.avatar_url,
+        avatar_url: profile.avatar_url
       })
       .eq('id', profile.id);
+
+    if (!error) {
+      setAllProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, ...profile } : p))
+      );
+    }
     setSavingProfile(false);
   }
 
@@ -242,7 +313,9 @@ export default function DashboardPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               YankesTree Dashboard
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">Kelola dokumen arsip berjenjang dan multi-profil</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Kelola dokumen arsip berjenjang dan multi-profil
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
@@ -298,7 +371,107 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* MODAL POPUP TAMBAH USER / PROFIL BARU */}
+        {/* MODAL EDIT DOKUMEN / TAUTAN */}
+        {showEditModal && editingLink && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Pencil size={18} className="text-amber-400" /> Edit Dokumen Arsip
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateLink} className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">
+                    Penempatan Dokumen
+                  </label>
+                  <select
+                    value={editParentId}
+                    onChange={(e) => setEditParentId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- Dokumen Utama (Folder / Kartu Terluar) --</option>
+                    {parentLinks
+                      .filter((pl) => pl.id !== editingLink.id) // Hindari memilih diri sendiri sebagai parent
+                      .map((pl) => (
+                        <option key={pl.id} value={pl.id}>
+                          Di dalam: {pl.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">
+                    Judul Dokumen
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Judul Dokumen"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">
+                    URL Target / File Link
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="https://drive.google.com/..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">
+                    URL Gambar Thumbnail (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editThumbnailUrl}
+                    onChange={(e) => setEditThumbnailUrl(e.target.value)}
+                    placeholder="https://.../cover.png"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingLink}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    <Save size={14} />
+                    {updatingLink ? 'Menyimpan...' : 'Perbarui Dokumen'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL TAMBAH USER / PROFIL BARU */}
         {showAddProfileModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
@@ -306,7 +479,7 @@ export default function DashboardPage() {
                 <Users size={18} className="text-indigo-400" /> Tambah User / Profil Cabang Baru
               </h3>
               <p className="text-xs text-slate-400 mb-4">
-                Buat profil atau sub-bagian baru yang memiliki link dan halaman URL tersendiri tanpa perlu membuat email baru.
+                Buat profil baru yang memiliki tautan dan halaman URL sendiri.
               </p>
               <form onSubmit={handleCreateNewProfile} className="space-y-3">
                 <div>
@@ -362,7 +535,9 @@ export default function DashboardPage() {
               <Share2 size={20} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-indigo-300">Share Link Khusus Profil: @{profile.username}</p>
+              <p className="text-xs font-semibold text-indigo-300">
+                Share Link Khusus Profil: @{profile.username}
+              </p>
               <p className="text-xs text-slate-400 font-mono select-all truncate max-w-sm md:max-w-md">
                 {getShareLink()}
               </p>
@@ -378,7 +553,7 @@ export default function DashboardPage() {
 
         {/* GRID UTAMA: EDITOR DI KIRI & CONTOH TAMPILAN DI KANAN */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* KOLOM KIRI: Form Pengaturan */}
+          {/* KOLOM KIRI */}
           <div className="lg:col-span-7 space-y-6">
             {/* Box Profil */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
@@ -441,7 +616,6 @@ export default function DashboardPage() {
                 <span>2.</span> Tambah Dokumen / Tautan Baru
               </h2>
               <form onSubmit={handleAddLink} className="space-y-3">
-                {/* Opsi Jadikan Sub-Dokumen */}
                 <div>
                   <label className="text-xs font-medium text-slate-400 mb-1 block">
                     Penempatan Dokumen (Pilih Induk jika ini adalah Sub-Dokumen):
@@ -534,7 +708,8 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Aksi: Status, Edit, Hapus */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button
                             onClick={() => handleToggleStatus(parent.id, parent.is_active)}
                             className={`text-xs px-2.5 py-1 rounded-md font-semibold border transition-colors ${
@@ -545,11 +720,23 @@ export default function DashboardPage() {
                           >
                             {parent.is_active ? 'Aktif' : 'Draft'}
                           </button>
+                          
+                          {/* Tombol Edit Dokumen Induk */}
+                          <button
+                            onClick={() => handleOpenEditModal(parent)}
+                            title="Edit Dokumen"
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-950/30 rounded-lg transition-colors"
+                          >
+                            <Pencil size={15} />
+                          </button>
+
+                          {/* Tombol Hapus */}
                           <button
                             onClick={() => handleDeleteLink(parent.id)}
+                            title="Hapus Dokumen"
                             className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition-colors"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
@@ -576,7 +763,8 @@ export default function DashboardPage() {
                                   </a>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
+
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
                                 <button
                                   onClick={() => handleToggleStatus(sub.id, sub.is_active)}
                                   className={`text-[10px] px-2 py-0.5 rounded border ${
@@ -587,11 +775,23 @@ export default function DashboardPage() {
                                 >
                                   {sub.is_active ? 'Aktif' : 'Draft'}
                                 </button>
+
+                                {/* Tombol Edit Sub-Dokumen */}
+                                <button
+                                  onClick={() => handleOpenEditModal(sub)}
+                                  title="Edit Sub-Dokumen"
+                                  className="p-1 text-slate-400 hover:text-amber-400"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+
+                                {/* Tombol Hapus Sub-Dokumen */}
                                 <button
                                   onClick={() => handleDeleteLink(sub.id)}
+                                  title="Hapus Sub-Dokumen"
                                   className="p-1 text-slate-500 hover:text-rose-400"
                                 >
-                                  <Trash2 size={14} />
+                                  <Trash2 size={13} />
                                 </button>
                               </div>
                             </div>
@@ -603,13 +803,15 @@ export default function DashboardPage() {
                 })}
 
                 {links.length === 0 && (
-                  <p className="text-center text-xs text-slate-500 py-6">Belum ada tautan arsip ditambahkan.</p>
+                  <p className="text-center text-xs text-slate-500 py-6">
+                    Belum ada tautan arsip ditambahkan.
+                  </p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* KOLOM KANAN: LIVE PREVIEW MOCKUP SMARTPHONE (DENGAN ACCORDION SUB-LINK) */}
+          {/* KOLOM KANAN: LIVE PREVIEW SMARTPHONE */}
           <div className="lg:col-span-5 sticky top-6">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl flex flex-col items-center">
               <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
@@ -665,47 +867,55 @@ export default function DashboardPage() {
 
                   {/* Daftar Tombol Kartu Putih & Sub-Links */}
                   <div className="w-full space-y-2.5 pb-6">
-                    {parentLinks.filter((l) => l.is_active).map((link) => {
-                      const subLinks = links.filter((l) => l.parent_id === link.id && l.is_active);
-                      return (
-                        <div key={link.id} className="space-y-1">
-                          <div className="w-full bg-white text-slate-800 rounded-xl p-1.5 flex items-center shadow-md">
-                            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {link.thumbnail_url ? (
-                                <img src={link.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="text-[8px] text-white font-bold text-center leading-none">
-                                  YANKES
-                                </div>
-                              )}
+                    {parentLinks
+                      .filter((l) => l.is_active)
+                      .map((link) => {
+                        const subLinks = links.filter(
+                          (l) => l.parent_id === link.id && l.is_active
+                        );
+                        return (
+                          <div key={link.id} className="space-y-1">
+                            <div className="w-full bg-white text-slate-800 rounded-xl p-1.5 flex items-center shadow-md">
+                              <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                {link.thumbnail_url ? (
+                                  <img
+                                    src={link.thumbnail_url}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="text-[8px] text-white font-bold text-center leading-none">
+                                    YANKES
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 text-center px-1.5">
+                                <p className="text-[10px] font-black uppercase text-slate-800 line-clamp-1">
+                                  {link.title}
+                                </p>
+                              </div>
+                              <div className="w-6 h-6 flex items-center justify-center text-slate-400 flex-shrink-0">
+                                <MoreVertical size={13} />
+                              </div>
                             </div>
-                            <div className="flex-1 text-center px-1.5">
-                              <p className="text-[10px] font-black uppercase text-slate-800 line-clamp-1">
-                                {link.title}
-                              </p>
-                            </div>
-                            <div className="w-6 h-6 flex items-center justify-center text-slate-400 flex-shrink-0">
-                              <MoreVertical size={13} />
-                            </div>
-                          </div>
 
-                          {/* Preview Sub-dokumen di dalam kartu */}
-                          {subLinks.length > 0 && (
-                            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-1.5 space-y-1">
-                              {subLinks.map((sub) => (
-                                <div
-                                  key={sub.id}
-                                  className="w-full bg-white/90 rounded-md py-1 px-2 flex items-center justify-between text-[9px] text-slate-800 font-medium"
-                                >
-                                  <span className="truncate">{sub.title}</span>
-                                  <FileText size={10} className="text-slate-500" />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            {/* Preview Sub-dokumen */}
+                            {subLinks.length > 0 && (
+                              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-1.5 space-y-1">
+                                {subLinks.map((sub) => (
+                                  <div
+                                    key={sub.id}
+                                    className="w-full bg-white/90 rounded-md py-1 px-2 flex items-center justify-between text-[9px] text-slate-800 font-medium"
+                                  >
+                                    <span className="truncate">{sub.title}</span>
+                                    <FileText size={10} className="text-slate-500" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
 
                     {parentLinks.filter((l) => l.is_active).length === 0 && (
                       <div className="w-full bg-white/10 rounded-xl p-4 text-center text-white/70 text-[10px]">
