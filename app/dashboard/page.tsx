@@ -9,7 +9,6 @@ import {
   ExternalLink,
   LogOut,
   Save,
-  Link as LinkIcon,
   Share2,
   Copy,
   Check,
@@ -18,12 +17,11 @@ import {
   MoreVertical,
   Sparkles,
   Users,
-  ChevronDown,
-  FolderPlus,
   FolderOpen,
   FileText,
   Pencil,
-  X
+  X,
+  FileCheck2
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -43,7 +41,7 @@ export default function DashboardPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
-  const [parentId, setParentId] = useState<string>(''); // Jika diisi, menjadi sub-dokumen dari link ini
+  const [parentId, setParentId] = useState<string>('');
 
   // Modal / Form Tambah Profil Baru (Multi-User)
   const [showAddProfileModal, setShowAddProfileModal] = useState(false);
@@ -60,6 +58,10 @@ export default function DashboardPage() {
   const [editParentId, setEditParentId] = useState<string>('');
   const [updatingLink, setUpdatingLink] = useState(false);
 
+  // Modal Pop-Up Setelah Mengklik Dokumen
+  const [selectedDoc, setSelectedDoc] = useState<any>(null);
+  const [copiedDocUrl, setCopiedDocUrl] = useState(false);
+
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -75,13 +77,11 @@ export default function DashboardPage() {
       }
       setUser(session.user);
 
-      // Ambil semua profil milik pengguna ini
       let { data: profilesList } = await supabase
         .from('profiles')
         .select('*')
         .or(`id.eq.${session.user.id},owner_id.eq.${session.user.id}`);
 
-      // Jika belum ada profil sama sekali, buatkan profil awal
       if (!profilesList || profilesList.length === 0) {
         const fallbackUsername =
           session.user.user_metadata?.username ||
@@ -127,7 +127,6 @@ export default function DashboardPage() {
     if (data) setLinks(data);
   }
 
-  // Beralih profil aktif
   async function handleSwitchProfile(selectedProfileId: string) {
     const selected = allProfiles.find((p) => p.id === selectedProfileId);
     if (selected) {
@@ -136,7 +135,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Tambah User / Profil Baru dalam 1 Dashboard
   async function handleCreateNewProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!newUsername || !user) return;
@@ -172,7 +170,6 @@ export default function DashboardPage() {
     setAddingProfile(false);
   }
 
-  // Tambah Link Baru
   async function handleAddLink(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !url || !profile.id) return;
@@ -203,7 +200,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Buka Modal Edit Dokumen
   function handleOpenEditModal(link: any) {
     setEditingLink(link);
     setEditTitle(link.title || '');
@@ -213,7 +209,6 @@ export default function DashboardPage() {
     setShowEditModal(true);
   }
 
-  // Simpan Perubahan Edit Dokumen
   async function handleUpdateLink(e: React.FormEvent) {
     e.preventDefault();
     if (!editingLink || !editTitle || !editUrl) return;
@@ -275,6 +270,24 @@ export default function DashboardPage() {
     setSavingProfile(false);
   }
 
+  // Handler saat dokumen diklik untuk menampilkan pop-up
+  function handleDocumentClick(doc: any) {
+    const parentDoc = doc.parent_id
+      ? links.find((l) => l.id === doc.parent_id)
+      : null;
+    setSelectedDoc({
+      ...doc,
+      parentTitle: parentDoc ? parentDoc.title : null
+    });
+    setCopiedDocUrl(false);
+  }
+
+  function handleCopyDocUrl(docUrl: string) {
+    navigator.clipboard.writeText(docUrl);
+    setCopiedDocUrl(true);
+    setTimeout(() => setCopiedDocUrl(false), 2000);
+  }
+
   const getShareLink = () => {
     if (typeof window === 'undefined') return '';
     return `${window.location.origin}/${profile.username}`;
@@ -292,7 +305,6 @@ export default function DashboardPage() {
     router.push('/login');
   }
 
-  // Daftar dokumen utama (bukan sub-link) untuk dropdown parent
   const parentLinks = links.filter((l) => !l.parent_id);
 
   if (loading) {
@@ -371,6 +383,96 @@ export default function DashboardPage() {
           </div>
         </header>
 
+        {/* MODAL POP-UP SAAT DOKUMEN DIKLIK */}
+        {selectedDoc && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+            onClick={() => setSelectedDoc(null)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 overflow-hidden">
+                    {selectedDoc.thumbnail_url ? (
+                      <img
+                        src={selectedDoc.thumbnail_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <FileCheck2 size={22} />
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                      {selectedDoc.parentTitle
+                        ? `Sub-Dokumen • ${selectedDoc.parentTitle}`
+                        : 'Dokumen Utama Arsip'}
+                    </span>
+                    <h3 className="text-base font-bold text-white leading-snug mt-0.5">
+                      {selectedDoc.title}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedDoc(null)}
+                  className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                <p className="text-[11px] font-medium text-slate-400">
+                  Tautan Dokumen Tujuan:
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-indigo-300 font-mono truncate">
+                    {selectedDoc.url}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDocUrl(selectedDoc.url)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium flex-shrink-0 transition-colors"
+                  >
+                    {copiedDocUrl ? (
+                      <>
+                        <Check size={12} className="text-emerald-400" /> Tersalin
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} /> Salin
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDoc(null)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+                >
+                  Tutup
+                </button>
+                <a
+                  href={selectedDoc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setSelectedDoc(null)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-950/60 transition-colors"
+                >
+                  <ExternalLink size={14} /> Buka Dokumen
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MODAL EDIT DOKUMEN / TAUTAN */}
         {showEditModal && editingLink && (
           <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
@@ -399,7 +501,7 @@ export default function DashboardPage() {
                   >
                     <option value="">-- Dokumen Utama (Folder / Kartu Terluar) --</option>
                     {parentLinks
-                      .filter((pl) => pl.id !== editingLink.id) // Hindari memilih diri sendiri sebagai parent
+                      .filter((pl) => pl.id !== editingLink.id)
                       .map((pl) => (
                         <option key={pl.id} value={pl.id}>
                           Di dalam: {pl.title}
@@ -680,8 +782,11 @@ export default function DashboardPage() {
                     <div key={parent.id} className="space-y-2">
                       {/* Kartu Utama */}
                       <div className="flex items-center justify-between bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl hover:border-slate-700 transition-all">
-                        <div className="flex items-center gap-3 overflow-hidden pr-2">
-                          <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div
+                          onClick={() => handleDocumentClick(parent)}
+                          className="flex items-center gap-3 overflow-hidden pr-2 cursor-pointer group flex-1"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0 group-hover:border-indigo-500/60 transition-colors">
                             {parent.thumbnail_url ? (
                               <img src={parent.thumbnail_url} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -689,7 +794,7 @@ export default function DashboardPage() {
                             )}
                           </div>
                           <div className="truncate">
-                            <h3 className="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                            <h3 className="font-semibold text-sm text-slate-200 group-hover:text-indigo-300 transition-colors flex items-center gap-2">
                               {parent.title}
                               {subItems.length > 0 && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800/50">
@@ -697,14 +802,9 @@ export default function DashboardPage() {
                                 </span>
                               )}
                             </h3>
-                            <a
-                              href={parent.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-slate-500 hover:text-indigo-400 truncate block max-w-sm"
-                            >
+                            <span className="text-xs text-slate-500 group-hover:text-indigo-400 truncate block max-w-sm">
                               {parent.url}
-                            </a>
+                            </span>
                           </div>
                         </div>
 
@@ -747,20 +847,20 @@ export default function DashboardPage() {
                           {subItems.map((sub) => (
                             <div
                               key={sub.id}
-                              className="flex items-center justify-between bg-slate-900/80 border border-slate-800/60 p-2.5 rounded-lg"
+                              className="flex items-center justify-between bg-slate-900/80 border border-slate-800/60 p-2.5 rounded-lg hover:border-slate-700 transition-all"
                             >
-                              <div className="flex items-center gap-2 overflow-hidden pr-2">
+                              <div
+                                onClick={() => handleDocumentClick(sub)}
+                                className="flex items-center gap-2 overflow-hidden pr-2 cursor-pointer group flex-1"
+                              >
                                 <FileText size={14} className="text-emerald-400 flex-shrink-0" />
                                 <div className="truncate">
-                                  <p className="text-xs font-medium text-slate-300">{sub.title}</p>
-                                  <a
-                                    href={sub.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[10px] text-slate-500 hover:text-indigo-300 truncate block max-w-xs"
-                                  >
+                                  <p className="text-xs font-medium text-slate-300 group-hover:text-emerald-300 transition-colors">
+                                    {sub.title}
+                                  </p>
+                                  <span className="text-[10px] text-slate-500 group-hover:text-indigo-300 truncate block max-w-xs">
                                     {sub.url}
-                                  </a>
+                                  </span>
                                 </div>
                               </div>
 
@@ -875,7 +975,11 @@ export default function DashboardPage() {
                         );
                         return (
                           <div key={link.id} className="space-y-1">
-                            <div className="w-full bg-white text-slate-800 rounded-xl p-1.5 flex items-center shadow-md">
+                            <button
+                              type="button"
+                              onClick={() => handleDocumentClick(link)}
+                              className="w-full bg-white hover:bg-slate-50 active:scale-[0.99] transition-all text-slate-800 rounded-xl p-1.5 flex items-center shadow-md cursor-pointer"
+                            >
                               <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center overflow-hidden flex-shrink-0">
                                 {link.thumbnail_url ? (
                                   <img
@@ -897,19 +1001,21 @@ export default function DashboardPage() {
                               <div className="w-6 h-6 flex items-center justify-center text-slate-400 flex-shrink-0">
                                 <MoreVertical size={13} />
                               </div>
-                            </div>
+                            </button>
 
                             {/* Preview Sub-dokumen */}
                             {subLinks.length > 0 && (
                               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-1.5 space-y-1">
                                 {subLinks.map((sub) => (
-                                  <div
+                                  <button
                                     key={sub.id}
-                                    className="w-full bg-white/90 rounded-md py-1 px-2 flex items-center justify-between text-[9px] text-slate-800 font-medium"
+                                    type="button"
+                                    onClick={() => handleDocumentClick(sub)}
+                                    className="w-full bg-white/90 hover:bg-white transition-colors rounded-md py-1 px-2 flex items-center justify-between text-[9px] text-slate-800 font-medium cursor-pointer"
                                   >
                                     <span className="truncate">{sub.title}</span>
-                                    <FileText size={10} className="text-slate-500" />
-                                  </div>
+                                    <FileText size={10} className="text-slate-500 flex-shrink-0" />
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -929,7 +1035,7 @@ export default function DashboardPage() {
               </div>
 
               <p className="text-center text-[11px] text-slate-400 mt-3">
-                Simulasi tampilan real-time sesuai layar HP pengunjung.
+                Klik dokumen pada daftar atau preview untuk melihat pop-up.
               </p>
             </div>
           </div>
